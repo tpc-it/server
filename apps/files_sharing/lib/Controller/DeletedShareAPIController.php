@@ -34,6 +34,7 @@ use OCP\Files\IRootFolder;
 use OCP\Files\NotFoundException;
 use OCP\IGroupManager;
 use OCP\IRequest;
+use OCP\IServerContainer;
 use OCP\IUserManager;
 use OCP\Share\Exceptions\GenericShareException;
 use OCP\Share\Exceptions\ShareNotFound;
@@ -57,13 +58,17 @@ class DeletedShareAPIController extends OCSController {
 	/** @var IRootFolder */
 	private $rootFolder;
 
+	/** @var IServerContainer */
+	private $serverContainer;
+
 	public function __construct(string $appName,
 								IRequest $request,
 								ShareManager $shareManager,
 								string $UserId,
 								IUserManager $userManager,
 								IGroupManager $groupManager,
-								IRootFolder $rootFolder) {
+								IRootFolder $rootFolder,
+								IServerContainer $serverContainer) {
 		parent::__construct($appName, $request);
 
 		$this->shareManager = $shareManager;
@@ -71,6 +76,7 @@ class DeletedShareAPIController extends OCSController {
 		$this->userManager = $userManager;
 		$this->groupManager = $groupManager;
 		$this->rootFolder = $rootFolder;
+		$this->serverContainer = $serverContainer;
 	}
 
 	private function formatShare(IShare $share): array {
@@ -120,9 +126,19 @@ class DeletedShareAPIController extends OCSController {
 			$result['expiration'] = $expiration->format('Y-m-d 00:00:00');
 		}
 
-		$group = $this->groupManager->get($share->getSharedWith());
-		$result['share_with'] = $share->getSharedWith();
-		$result['share_with_displayname'] = $group !== null ? $group->getDisplayName() : $share->getSharedWith();
+		if ($share->getShareType() === \OCP\Share::SHARE_TYPE_GROUP) {
+			$group = $this->groupManager->get($share->getSharedWith());
+			$result['share_with'] = $share->getSharedWith();
+			$result['share_with_displayname'] = $group !== null ? $group->getDisplayName() : $share->getSharedWith();
+		} else if ($share->getShareType() === \OCP\Share::SHARE_TYPE_ROOM) {
+			$result['share_with'] = $share->getSharedWith();
+			$result['share_with_displayname'] = '';
+
+			try {
+				$result = array_merge($result, $this->getRoomShareHelper()->formatShare($share));
+			} catch (QueryException $e) {
+			}
+		}
 
 		return $result;
 
@@ -132,7 +148,10 @@ class DeletedShareAPIController extends OCSController {
 	 * @NoAdminRequired
 	 */
 	public function index(): DataResponse {
-		$shares = $this->shareManager->getDeletedSharedWith($this->userId, \OCP\Share::SHARE_TYPE_GROUP, null, -1, 0);
+		$groupShares = $this->shareManager->getDeletedSharedWith($this->userId, \OCP\Share::SHARE_TYPE_GROUP, null, -1, 0);
+		$roomShares = $this->shareManager->getDeletedSharedWith($this->userId, \OCP\Share::SHARE_TYPE_ROOM, null, -1, 0);
+
+		$shares = array_merge($groupShares, $roomShares);
 
 		$shares = array_map(function (IShare $share) {
 			return $this->formatShare($share);
@@ -164,5 +183,22 @@ class DeletedShareAPIController extends OCSController {
 		}
 
 		return new DataResponse([]);
+	}
+
+	/**
+	 * Returns the helper of DeletedShareAPIController for room shares.
+	 *
+	 * If the Talk application is not enabled or the helper is not available
+	 * a QueryException is thrown instead.
+	 *
+	 * @return OCA\Spreed\Share\Helper\Manager
+	 * @throws QueryException
+	 */
+	private function getRoomShareHelper() {
+		if (!$this->serverContainer->getAppManager()->isEnabledForUser('spreed')) {
+			throw new QueryException();
+		}
+
+		return $this->serverContainer->query(\OCA\Spreed\Share\Helper\DeletedShareAPIController::class);
 	}
 }
