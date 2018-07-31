@@ -24,6 +24,7 @@ declare(strict_types=1);
 
 namespace OCA\TwoFactorBackupCodes\Listener;
 
+use BadMethodCallException;
 use OCA\TwoFactorBackupCodes\Event\CodesGenerated;
 use OCP\Activity\IManager;
 use OCP\ILogger;
