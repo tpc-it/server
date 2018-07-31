@@ -24,7 +24,9 @@ declare(strict_types=1);
 
 namespace OCA\TwoFactorBackupCodes\Tests\Unit\Listener;
 
+use OCA\TwoFactorBackupCodes\Event\CodesGenerated;
 use OCA\TwoFactorBackupCodes\Listener\ActivityPublisher;
+use OCP\Activity\IEvent;
 use OCP\Activity\IManager;
 use OCP\ILogger;
 use OCP\IUser;
@@ -63,6 +65,7 @@ class ActivityPublisherTest extends TestCase {
 
 	public function testHandleCodesGeneratedEvent() {
 		$user = $this->createMock(IUser::class);
+		$user->method('getUID')->willReturn('fritz');
 		$event = new CodesGenerated($user);
 		$activityEvent = $this->createMock(IEvent::class);
 		$this->activityManager->expects($this->once())
