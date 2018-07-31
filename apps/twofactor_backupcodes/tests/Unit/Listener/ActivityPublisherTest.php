@@ -27,6 +27,7 @@ namespace OCA\TwoFactorBackupCodes\Tests\Unit\Listener;
 use OCA\TwoFactorBackupCodes\Listener\ActivityPublisher;
 use OCP\Activity\IManager;
 use OCP\ILogger;
+use OCP\IUser;
 use PHPUnit_Framework_MockObject_MockObject;
 use Symfony\Component\EventDispatcher\Event;
 use Test\TestCase;
